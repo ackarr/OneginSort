@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "BadCode.h"
+#include "Bubble.h"
 
 
 struct Text{
@@ -21,6 +22,11 @@ size_t ProcessingLines(char* buf, size_t file_size, char*** lines);
 
 void   SortLines  (Text *t);
 int    CmpStr     (const void *a, const void *b);
+void   SortMyLines(Text *t);
+void   OrigSort   (Text *t);
+int    OrigCmpStr (const void* a, const void* b);
+
+
 
 void   PrintLines (const Text *t, FILE *out);
 
@@ -34,7 +40,17 @@ int main(int argc, char **argv)
 
     TextLoad(argv[1], &t);
 
+    printf("%s\n", "Вывожу отсортированный");
     SortLines(&t);
+    PrintLines(&t, stdout);
+
+    printf("%s\n", "Вывожу бабл");
+    SortMyLines(&t);
+    PrintLines(&t, stdout);
+
+
+    printf("%s\n", "Вывожу исходный");
+    OrigSort(&t);
     PrintLines(&t, stdout);
 
     TextFree(&t);
@@ -160,6 +176,14 @@ void SortLines(Text *t)
     }
 }
 
+void   SortMyLines(Text *t)
+{
+    if (t->line_count > 1)
+    {
+        Bubble(t->lines, t->line_count, sizeof(*t->lines), &CmpStr);
+    }
+}
+
 int CmpStr(const void* a, const void* b)
 {
     const char* s1 = *(const char**) a;
@@ -168,12 +192,32 @@ int CmpStr(const void* a, const void* b)
     return strcmp(s1, s2);
 }
 
+void OrigSort(Text *t)
+{
+    if (t->line_count > 1)
+    {
+        qsort(t->lines, t->line_count, sizeof(*t->lines), &OrigCmpStr);
+    }
+}
+
+int OrigCmpStr(const void* a, const void* b)
+{
+    const char* s1 = *(const char**) a;
+    const char* s2 = *(const char**) b;
+
+    if(s1 < s2) return -1;
+    if(s1 > s2) return 1;
+    return 0;
+}
+
 
 void PrintLines(const Text *t, FILE *out)
 {
-    for (size_t i = 0; i < t->line_count; i++)
+    for(size_t i = 0; i < t->line_count; i++)
     {
+        fputs("<", out);
         fputs(t->lines[i], out);
+        fputs(">", out);
         fputc('\n', out);
     }
 }
