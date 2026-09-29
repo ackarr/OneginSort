@@ -36,22 +36,34 @@ void   TextFree   (Text *t);
 
 int main(int argc, char **argv)
 {
+    if (argc < 2)
+    {
+        printf("Введены не все данные");
+        return 1;
+    }
+
+
+    FILE* out = fopen("sortout.txt", "w");
+
     Text t = {};
 
-    TextLoad(argv[1], &t);
+    if(TextLoad(argv[1], &t) != 0)
+    {
+        printf("Файл не прочтен");
+        return 1;
+    }
 
-    printf("%s\n", "Вывожу отсортированный");
+    fputs("Вывожу отсортированный\n", out);
     SortLines(&t);
-    PrintLines(&t, stdout);
+    PrintLines(&t, out);
 
-    printf("%s\n", "Вывожу бабл");
-    SortMyLines(&t);
-    PrintLines(&t, stdout);
-
-
-    printf("%s\n", "Вывожу исходный");
+    fputs("Вывожу исходный\n", out);
     OrigSort(&t);
-    PrintLines(&t, stdout);
+    PrintLines(&t, out);
+
+    fputs("Вывожу бабл\n", out);
+    SortMyLines(&t);
+    PrintLines(&t, out);
 
     TextFree(&t);
 
@@ -63,7 +75,7 @@ int TextLoad(const char *file_name, Text *out)
 {
     char* buf = NULL;
     size_t size = 0;
-    ReadFile(file_name, &buf, &size);
+    if(ReadFile(file_name, &buf, &size) != 0) return 1;
 
 
     char** lines = NULL;
@@ -73,7 +85,7 @@ int TextLoad(const char *file_name, Text *out)
     if (!lines)
     {
         free(buf);
-        return -1;
+        return 1;
     }
 
 
@@ -89,7 +101,20 @@ int ReadFile(const char* file_name, char** out_buf, size_t* out_size)
 {
     size_t file_size = FileSize(file_name);
 
+    if(file_size == 0)
+    {
+        printf("Пустой файл");
+        return 1;
+    }
+
     int fd = open(file_name, O_RDONLY);
+
+    if(fd == -1)
+    {
+        printf("Файл не был открыт");
+        close(fd);
+        return 1;
+    }
 
     char* buf = (char*) malloc(file_size + 1);
 
@@ -123,6 +148,14 @@ size_t FileSize (const char* file_name)
 size_t ProcessingLines(char* buf, size_t file_size, char*** lines_out)
 {
     char** lines = (char**) malloc(sizeof(*lines));
+    if(!lines)
+    {
+        printf("%s, %s:%d", "Память не выделилась", __FILE__, __LINE__);
+        return 0;
+    }
+
+    size_t size_str = sizeof(*lines);
+    size_t capacity = size_str;
 
     size_t count = 0;
 
@@ -134,14 +167,21 @@ size_t ProcessingLines(char* buf, size_t file_size, char*** lines_out)
         {
             buf[i] = '\0';
 
-            char** temp = (char**) realloc(lines, (count + 1) * sizeof(*lines));
-            if(!temp)
+            if((count + 1) * size_str > capacity)
             {
-                free(lines);
-                *lines_out = NULL;
-                return 0;
+                capacity = capacity * 3/2 + 1;
+
+                char** temp = (char**) realloc(lines, capacity);
+
+                if(!temp)
+                {
+                    free(lines);
+                    *lines_out = NULL;
+                    return 0;
+                }
+                lines = temp;
             }
-            lines = temp;
+
             lines[count++] = &buf[start];
             start = i + 1;
         }
