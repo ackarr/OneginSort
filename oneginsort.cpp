@@ -9,6 +9,16 @@
 #include "Bubble.h"
 
 
+enum errs
+{
+    NORM_END = 0,
+    INPUT_ERR,
+    FILE_ERR,
+    DATA_INIT_ERR,
+    WRITE_ERR
+};
+
+
 struct Text{
             char* buf;
             char** lines;
@@ -22,6 +32,8 @@ size_t ProcessingLines(char* buf, size_t file_size, char*** lines);
 
 void   SortLines  (Text *t);
 int    CmpStr     (const void *a, const void *b);
+int    CmpStrEnd  (const void* a, const void* b);
+char*  ReverseStr (const char* line);
 void   SortMyLines(Text *t);
 void   OrigSort   (Text *t);
 int    OrigCmpStr (const void* a, const void* b);
@@ -38,36 +50,45 @@ int main(int argc, char **argv)
 {
     if (argc < 2)
     {
-        printf("Введены не все данные");
-        return 1;
+        printf("%s, %s:%d", "ERROR: Введены не все данные", __FILE__, __LINE__);
+        return INPUT_ERR;
     }
 
 
     FILE* out = fopen("sortout.txt", "w");
+    if(!out)
+    {
+        printf("%s, %s:%d", "ERROR: Файл для вывода не открылся", __FILE__, __LINE__);
+        return FILE_ERR;
+    }
 
     Text t = {};
 
     if(TextLoad(argv[1], &t) != 0)
     {
-        printf("Файл не прочтен");
-        return 1;
+        printf("%s, %s:%d", "ERROR: Файл не прочтен", __FILE__, __LINE__);
+        return FILE_ERR;
     }
 
     fputs("Вывожу отсортированный\n", out);
-    SortLines(&t);
+    qsort(t.lines, t.line_count, sizeof(*t.lines), &CmpStr);
     PrintLines(&t, out);
 
-    fputs("Вывожу исходный\n", out);
-    OrigSort(&t);
+    fputs("\n\n\n\n\n\n\n\n\n\n\n\nВывожу исходный\n", out);
+    qsort(t.lines, t.line_count, sizeof(*t.lines), &OrigCmpStr);
     PrintLines(&t, out);
 
-    fputs("Вывожу бабл\n", out);
-    SortMyLines(&t);
+    fputs("\n\n\n\n\n\n\n\n\n\n\n\nВывожу бабл\n", out);
+    Bubble(t.lines, t.line_count, sizeof(*t.lines), &CmpStr);
+    PrintLines(&t, out);
+
+    fputs("\n\n\n\n\n\n\n\n\n\n\n\nВывожу бабл по концу\n", out);
+    Bubble(t.lines, t.line_count, sizeof(*t.lines), &CmpStrEnd);
     PrintLines(&t, out);
 
     TextFree(&t);
 
-    return 0;
+    return NORM_END;
 }
 
 
@@ -85,7 +106,8 @@ int TextLoad(const char *file_name, Text *out)
     if (!lines)
     {
         free(buf);
-        return 1;
+        printf("%s, %s:%d", "ERROR: Адреса строк не записаны", __FILE__, __LINE__);
+        return WRITE_ERR;
     }
 
 
@@ -94,7 +116,7 @@ int TextLoad(const char *file_name, Text *out)
     out->lines = lines;
     out->line_count = count_lines;
 
-    return 0;
+    return NORM_END;
 }
 
 int ReadFile(const char* file_name, char** out_buf, size_t* out_size)
@@ -103,28 +125,28 @@ int ReadFile(const char* file_name, char** out_buf, size_t* out_size)
 
     if(file_size == 0)
     {
-        printf("Пустой файл");
-        return 1;
+        printf("%s, %s:%d", "ERROR: Пустой файл", __FILE__, __LINE__);
+        return FILE_ERR;
     }
 
     int fd = open(file_name, O_RDONLY);
 
     if(fd == -1)
     {
-        printf("Файл не был открыт");
         close(fd);
-        return 1;
+        printf("%s, %s:%d", "ERROR: Файл не был открыт", __FILE__, __LINE__);
+        return FILE_ERR;
     }
 
     char* buf = (char*) malloc(file_size + 1);
-
     if(!buf)
     {
         close(fd);
-        return -1;
+        printf("%s, %s:%d", "ERROR: Память не выделилась", __FILE__, __LINE__);
+        return DATA_INIT_ERR;
     }
 
-    ssize_t n = read(fd, buf, file_size);
+    read(fd, buf, file_size);
 
     close(fd);
 
@@ -133,7 +155,7 @@ int ReadFile(const char* file_name, char** out_buf, size_t* out_size)
     *out_buf = buf;
     *out_size = file_size;
 
-    return 0;
+    return NORM_END;
 }
 
 size_t FileSize (const char* file_name)
@@ -150,12 +172,12 @@ size_t ProcessingLines(char* buf, size_t file_size, char*** lines_out)
     char** lines = (char**) malloc(sizeof(*lines));
     if(!lines)
     {
-        printf("%s, %s:%d", "Память не выделилась", __FILE__, __LINE__);
-        return 0;
+        printf("%s, %s:%d", "ERROR: Память не выделилась", __FILE__, __LINE__);
+        return DATA_INIT_ERR;
     }
 
     size_t size_str = sizeof(*lines);
-    size_t capacity = size_str;
+    size_t capacity = 1;
 
     size_t count = 0;
 
@@ -167,17 +189,17 @@ size_t ProcessingLines(char* buf, size_t file_size, char*** lines_out)
         {
             buf[i] = '\0';
 
-            if((count + 1) * size_str > capacity)
+            if((count + 1) > capacity)
             {
                 capacity = capacity * 3/2 + 1;
 
-                char** temp = (char**) realloc(lines, capacity);
+                char** temp = (char**) realloc(lines, capacity * size_str);
 
                 if(!temp)
                 {
                     free(lines);
                     *lines_out = NULL;
-                    return 0;
+                    return DATA_INIT_ERR;
                 }
                 lines = temp;
             }
@@ -231,6 +253,27 @@ int CmpStr(const void* a, const void* b)
 
     return strcmp(s1, s2);
 }
+
+int CmpStrEnd(const void* a, const void* b)
+{
+    const char* s1 = *(const char**) a;
+    const char* s2 = *(const char**) b;
+    size_t l1 = strlen(s1);
+    size_t l2 = strlen(s2);
+
+    while (l1 > 0 && l2 > 0)
+    {
+        if (s1[l1 - 1] != s2[l2 - 1])
+        {
+            return (int)s1[l1 - 1] - (int)s2[l2 - 1];
+        }
+
+        l1--;
+        l2--;
+    }
+    return (int)l1 - (int)l2;
+}
+
 
 void OrigSort(Text *t)
 {
